@@ -1,27 +1,21 @@
-const PRODUCTION_SITE_URL = "https://aherfsgroupbuy.com";
-
 /**
  * Canonical / OG / sitemap base — no trailing slash.
- * - Optional override: `NEXT_PUBLIC_SITE_URL` (set on Vercel/hosting for your live domain).
- * - `next dev`: `http://localhost:3000` so canonical matches the URL you audit.
- * - Vercel preview: deployment URL (`VERCEL_URL`).
- * - Otherwise: live site below.
+ *
+ * Resolution order:
+ * 1. `NEXT_PUBLIC_SITE_URL` — set on Vercel when you want a fixed public domain (e.g. custom domain).
+ * 2. `VERCEL_URL` — automatic on Vercel (preview + production); canonical matches the deployment host (e.g. *.vercel.app).
+ * 3. `http://localhost:3000` — local `next dev` / builds without Vercel env.
  */
 function resolveSiteUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
   if (explicit) return explicit;
 
-  if (process.env.NODE_ENV === "development") {
-    return "http://localhost:3000";
-  }
-
-  const vercelEnv = process.env.VERCEL_ENV;
-  const vercelHost = process.env.VERCEL_URL?.replace(/^https?:\/\//, "");
-  if (vercelEnv === "preview" && vercelHost) {
+  const vercelHost = process.env.VERCEL_URL?.trim().replace(/^https?:\/\//, "");
+  if (vercelHost) {
     return `https://${vercelHost}`;
   }
 
-  return PRODUCTION_SITE_URL;
+  return "http://localhost:3000";
 }
 
 export const SITE_URL = resolveSiteUrl();
