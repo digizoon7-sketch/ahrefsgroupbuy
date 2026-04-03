@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { headerCta, headerNavClusters } from "@/content/nav";
 import { SITE_NAME } from "@/lib/constants";
 
@@ -28,13 +28,45 @@ function ChevronDown({ className }: { className?: string }) {
 
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileClusterOpen, setMobileClusterOpen] = useState<string | null>(null);
   const [openHref, setOpenHref] = useState<string | null>(null);
   const pathname = usePathname();
   const desktopNavRef = useRef<HTMLElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeightPx, setHeaderHeightPx] = useState(56);
 
   useEffect(() => {
     setOpenHref(null);
   }, [pathname]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+    setMobileClusterOpen(null);
+  }, [pathname]);
+
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => setHeaderHeightPx(Math.ceil(el.getBoundingClientRect().height));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [mobileOpen]);
 
   useEffect(() => {
     if (openHref === null) return;
@@ -55,7 +87,10 @@ export function Header() {
   }, [openHref]);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 shadow-sm shadow-slate-900/[0.03] backdrop-blur-md supports-[backdrop-filter]:bg-white/75">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/85 shadow-sm shadow-slate-900/[0.03] backdrop-blur-md supports-[backdrop-filter]:bg-white/75"
+    >
       <div className="relative mx-auto max-w-6xl px-4 md:px-6">
         <div className="flex items-center justify-between gap-3 py-2.5 md:py-3">
           <Link
@@ -197,9 +232,10 @@ export function Header() {
             </Link>
             <button
               type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-md text-slate-700 transition hover:bg-slate-100 lg:hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-md text-slate-700 transition hover:bg-slate-100 active:bg-slate-200 lg:hidden"
               aria-expanded={mobileOpen}
               aria-controls="mobile-nav"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
               onClick={() => setMobileOpen((v) => !v)}
             >
               <span className="sr-only">Toggle menu</span>
@@ -228,60 +264,99 @@ export function Header() {
             </button>
           </div>
         </div>
+      </div>
 
-        {mobileOpen ? (
+      {mobileOpen ? (
+        <div className="lg:hidden" id="mobile-nav">
+          <button
+            type="button"
+            className="fixed left-0 right-0 z-[90] bg-slate-900/45 backdrop-blur-[2px]"
+            style={{ top: headerHeightPx, bottom: 0 }}
+            aria-label="Close menu"
+            onClick={() => setMobileOpen(false)}
+          />
           <div
-            id="mobile-nav"
-            className="max-h-[min(70vh,calc(100dvh-5rem))] overflow-y-auto border-t border-slate-100 pb-5 pt-1 lg:hidden"
+            className="fixed left-0 right-0 z-[95] flex flex-col border-t border-slate-200/80 bg-white shadow-[0_12px_40px_-8px_rgba(15,23,42,0.2)]"
+            style={{
+              top: headerHeightPx,
+              bottom: 0,
+              paddingBottom: "max(1rem, env(safe-area-inset-bottom, 0px))",
+            }}
           >
-            <nav className="flex flex-col" aria-label="Topics and in-depth guides">
+            <nav
+              className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-6 pt-2"
+              aria-label="Topics and in-depth guides"
+            >
               <Link
                 href="/"
-                className={`border-b border-slate-100 py-3 text-[15px] font-bold ${
-                  pathname === "/" ? "text-primary" : "text-navy hover:text-primary"
+                className={`block border-b border-slate-100 py-3.5 text-base font-bold ${
+                  pathname === "/" ? "text-primary" : "text-navy active:text-primary"
                 }`}
                 onClick={() => setMobileOpen(false)}
               >
                 Home
               </Link>
-              {headerNavClusters.map((cluster) => (
-                <div key={cluster.pillarHref} className="border-b border-slate-100 last:border-b-0">
-                  <Link
-                    href={cluster.pillarHref}
-                    className={`block py-3 pr-1 text-[15px] font-bold ${
-                      pathname === cluster.pillarHref ? "text-primary" : "text-navy hover:text-primary"
-                    }`}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {cluster.pillarTitle}
-                  </Link>
-                  <details className="group overflow-hidden rounded-md border border-slate-100 bg-slate-50/40">
-                    <summary className="cursor-pointer list-none px-2 py-2.5 text-sm font-semibold text-slate-600 marker:hidden [&::-webkit-details-marker]:hidden">
-                      In-depth guides
-                    </summary>
-                    <ul className="space-y-0.5 border-t border-slate-100/80 bg-white/60 px-2 pb-3 pt-2">
-                      {cluster.supporting.map((s) => (
-                        <li key={s.href}>
-                          <Link
-                            href={s.href}
-                            className={`block rounded-md py-2 pl-2 text-sm leading-snug ${
-                              pathname === s.href
-                                ? "border-l-[3px] border-l-accent bg-slate-50 font-semibold text-navy"
-                                : "border-l-[3px] border-l-transparent text-slate-600 hover:border-l-primary/30 hover:bg-slate-50/80 hover:text-navy"
-                            }`}
-                            onClick={() => setMobileOpen(false)}
-                          >
-                            {s.label}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                </div>
-              ))}
+              {headerNavClusters.map((cluster) => {
+                const expanded = mobileClusterOpen === cluster.pillarHref;
+                return (
+                  <div key={cluster.pillarHref} className="border-b border-slate-100 last:border-b-0">
+                    <div className="flex items-stretch gap-0">
+                      <Link
+                        href={cluster.pillarHref}
+                        className={`min-w-0 flex-1 py-3.5 pr-2 text-base font-bold leading-snug ${
+                          pathname === cluster.pillarHref
+                            ? "text-primary"
+                            : "text-navy active:text-primary"
+                        }`}
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        {cluster.pillarTitle}
+                      </Link>
+                      <button
+                        type="button"
+                        className="flex w-12 shrink-0 items-center justify-center border-l border-slate-100 text-slate-500 transition active:bg-slate-100"
+                        aria-expanded={expanded}
+                        aria-controls={`mobile-sub-${cluster.pillarHref.replace(/\//g, "")}`}
+                        onClick={() =>
+                          setMobileClusterOpen((h) => (h === cluster.pillarHref ? null : cluster.pillarHref))
+                        }
+                      >
+                        <span className="sr-only">
+                          {expanded ? "Hide" : "Show"} guides for {cluster.pillarTitle}
+                        </span>
+                        <ChevronDown
+                          className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                    </div>
+                    {expanded ? (
+                      <ul
+                        id={`mobile-sub-${cluster.pillarHref.replace(/\//g, "")}`}
+                        className="space-y-0.5 border-t border-slate-100 bg-slate-50/70 px-2 py-2"
+                      >
+                        {cluster.supporting.map((s) => (
+                          <li key={s.href}>
+                            <Link
+                              href={s.href}
+                              className={`block rounded-lg py-2.5 pl-3 pr-2 text-sm leading-snug ${
+                                pathname === s.href
+                                  ? "border-l-[3px] border-l-accent bg-white font-semibold text-navy shadow-sm"
+                                  : "border-l-[3px] border-l-transparent text-slate-600 active:bg-white"
+                              }`}
+                              onClick={() => setMobileOpen(false)}
+                            >
+                              {s.label}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                );
+              })}
               <Link
                 href={headerCta.href}
-                className={`mt-4 block rounded-md border py-3 text-center text-sm font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                className={`mt-5 block rounded-xl border py-3.5 text-center text-sm font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                   pathname === headerCta.href
                     ? "border-navy bg-navy text-white"
                     : "border-accent/90 bg-accent text-accent-foreground active:bg-accent/95"
@@ -292,8 +367,8 @@ export function Header() {
               </Link>
             </nav>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </header>
   );
 }
